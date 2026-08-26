@@ -111,12 +111,6 @@ Shader "berch/Holographic"
       TEXTURE2D(_NormalMap);
       SAMPLER(sampler_NormalMap);
 
-      TEXTURE2D(_HoloMap);
-      SAMPLER(sampler_HoloMap);
-
-      TEXTURE2D(_HoloNormalMap);
-      SAMPLER(sampler_HoloNormalMap);
-
       struct Attributes
       {
         float3 positionOS : POSITION;
@@ -260,42 +254,6 @@ Shader "berch/Holographic"
         ) * fresnelColor * reflectionStrength;
       }
 
-      float3 CalculateHolographicCoat(
-        float2 uv,
-        float3 positionWS,
-        float3 normalWS,
-        float3 tangentWS,
-        float3 bitangentWS,
-        float3 viewDirWS
-      )
-      {
-        float4 holoSample = SAMPLE_TEXTURE2D(
-          _HoloMap,
-          sampler_HoloMap,
-          TRANSFORM_TEX(uv, _HoloMap)
-        );
-        float3 holoNormalTS = DecodeHoloNormalMap(
-          TRANSFORM_TEX(uv, _HoloNormalMap)
-        );
-        float3 holoNormalWS = TangentToWorld(
-          holoNormalTS,
-          tangentWS,
-          bitangentWS,
-          normalWS
-        );
-        float fresnel = pow(
-          1.0 - saturate(dot(holoNormalWS, viewDirWS)),
-          5.0
-        );
-        float phase = fresnel * _DispersionFactor * 6.2831853;
-        float3 dispersionColor = 0.5 + 0.5 * cos(
-          phase + float3(0.0, 2.0943951, 4.1887902)
-        );
-        float coatMask = saturate(holoSample.a * _HoloStrength * fresnel);
-
-        return holoSample.rgb * dispersionColor * coatMask;
-      }
-
       float3 CalculateLight(
         float3 positionWS,
         float3 normalWS,
@@ -376,16 +334,8 @@ Shader "berch/Holographic"
           _EnvironmentReflectionStrength,
           GetNormalizedScreenSpaceUV(input.positionCS)
         );
-        float3 holographicCoat = CalculateHolographicCoat(
-          input.uv,
-          input.positionWS,
-          normalWS,
-          input.tangentWS,
-          input.bitangentWS,
-          viewDirWS
-        );
 
-        float3 finalColor = ambientDiffuse + environmentReflection + holographicCoat;
+        float3 finalColor = ambientDiffuse + environmentReflection;
 
         //Main Light
         Light mainLight = GetMainLight(input.shadowCoord);
