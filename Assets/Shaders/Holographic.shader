@@ -3,39 +3,51 @@ Shader "berch/Holographic"
   Properties
   {
     [Header(Main Surface Properties)]
-    [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
+    [MainColor] _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
     [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
 
     [Header(Metallic Properties)]
-    _Metallic ("Metallic", Range(0,1)) = 0
+    _Metallic ("Metallic", Range(0, 1)) = 0
     _MetallicMap ("Metallic Map", 2D) = "white" {}
 
     [Header(Roughness Properties)]
-    _Roughness ("Roughness", Range(0,1)) = 0.35
+    _Roughness ("Roughness", Range(0, 1)) = 0.35
     _RoughnessMap ("Roughness Map", 2D) = "white" {}
+    _Shininess ("Shininess", Range(0, 1)) = 1
 
     [Header(Normal Properties)]
     [Normal] _NormalMap ("Normal Map", 2D) = "bump" {}
-    _NormalStrength ("Strength", Range(0,2)) = 1
+    _NormalStrength ("Strength", Range(0, 2)) = 1
+
+    [Header(Fresnel Properties)]
+    _FresnelStrength ("Fresnel Strength", Range(0, 2)) = 1
+    _FresnelPower ("Fresnel Power", Range(1, 8)) = 5
 
     [Header(Holographic Coat)]
-    _HoloStrength ("Holographic Strength", Range(0,1)) = 1
+    _HoloStrength ("Holographic Strength", Range(0, 1)) = 1
     _HoloMap ("Holographic Map", 2D) = "white" {}
 
     [Header(Holographic Normal Properties)]
     _HoloNormalMap ("Holographic Normal Map", 2D) = "bump" {}
-    _HoloNormalStrength ("Holographic Normal Strength", Range(0,2)) = 1
+    _HoloNormalStrength ("Holographic Normal Strength", Range(0, 2)) = 1
 
     [Header(Holographic Specular Properties)]
-    _Anisotropy ("Anisotropy", Range(-1,1)) = 0
-    _AnisotropyRotation ("Anisotropy Rotation", Range(0,1)) = 0
+    _HoloRoughness ("Holographic Roughness", Range(0, 1)) = 0.35
+    _HoloRoughnessMap ("Holographic Roughness Map", 2D) = "white" {}
 
-    _SpecularReflectionStrength ("Specular Reflection Strength", Range(0,2)) = 1
-    _EnvironmentReflectionStrength ("Environment Reflection Strength", Range(0,2)) = 1
+    [Space(10)]
+    _Anisotropy ("Holo Anisotropy", Range(-1, 1)) = 0
+    _AnisotropyRotation ("Holo Anisotropy Rotation", Range(0,1)) = 0
 
+    // [Space(10)]
+    // _EnvironmentReflectionStrength ("Environment Reflection Strength", Range(0, 2)) = 1
+
+    [Header(Holographic Iteration Properties)]
     _HoloIterations ("Holographic Iterations", Int) = 1
     _HoloOffset ("Holographic Offset", Range(0.01, 1)) = 1
-    _DispersionFactor ("Dispersion Factor", Range(0.01, 1)) = 1
+    [Space(10)]
+    _DispersionIterations ("Dispersion Iterations", Int) = 3
+    _DispersionFactor ("Dispersion Factor", Range(0, 5)) = 1
   }
 
   SubShader
@@ -78,12 +90,20 @@ Shader "berch/Holographic"
         float _Roughness;
         float4 _RoughnessMap_ST;
 
+        float _Shininess;
+
         float4 _NormalMap_ST;
         float _NormalStrength;
+
+        float _FresnelStrength;
+        float _FresnelPower;
 
         // Holographic Properties
         float _HoloStrength;
         float4 _HoloMap_ST;
+
+        float _HoloRoughness;
+        float4 _HoloRoughnessMap_ST;
 
         float4 _HoloNormalMap_ST;
         float _HoloNormalStrength;
@@ -91,11 +111,11 @@ Shader "berch/Holographic"
         float _Anisotropy;
         float _AnisotropyRotation;
 
-        float _SpecularReflectionStrength;
-        float _EnvironmentReflectionStrength;
+        // float _EnvironmentReflectionStrength;
 
         int _HoloIterations;
         float _HoloOffset;
+        int _DispersionIterations;
         float _DispersionFactor;
       CBUFFER_END
 
@@ -110,6 +130,15 @@ Shader "berch/Holographic"
 
       TEXTURE2D(_NormalMap);
       SAMPLER(sampler_NormalMap);
+
+      TEXTURE2D(_HoloMap);
+      SAMPLER(sampler_HoloMap);
+
+      TEXTURE2D(_HoloRoughnessMap);
+      SAMPLER(sampler_HoloRoughnessMap);
+
+      TEXTURE2D(_HoloNormalMap);
+      SAMPLER(sampler_HoloNormalMap);
 
       struct Attributes
       {
@@ -185,15 +214,69 @@ Shader "berch/Holographic"
         return normalize(mul(normalTS, tangentToWorld));
       }
 
+      float3 ApplyHoloAnisotropyToNormal(
+        float3 normalTS
+      )
+      {
+        float angle = _AnisotropyRotation * 6.2831853;
+        float sine = sin(angle);
+        float cosine = cos(angle);
+        float2 rotatedXY = float2(
+          normalTS.x * cosine - normalTS.y * sine,
+          normalTS.x * sine + normalTS.y * cosine
+        );
+        rotatedXY *= float2(
+          1.0 + _Anisotropy,
+          1.0 - _Anisotropy
+        );
+        normalTS.xy = float2(
+          rotatedXY.x * cosine + rotatedXY.y * sine,
+          -rotatedXY.x * sine + rotatedXY.y * cosine
+        );
+
+        return normalize(normalTS);
+      }
+
+      float3 OffsetHoloDirection(
+        float3 directionWS,
+        float3 normalWS,
+        float2 offset
+      )
+      {
+        float angle = _AnisotropyRotation * 6.2831853;
+        float sine = sin(angle);
+        float cosine = cos(angle);
+        float2 rotatedOffset = float2(
+          offset.x * cosine - offset.y * sine,
+          offset.x * sine + offset.y * cosine
+        );
+        rotatedOffset *= float2(
+          1.0 + _Anisotropy,
+          1.0 - _Anisotropy
+        );
+        rotatedOffset = float2(
+          rotatedOffset.x * cosine + rotatedOffset.y * sine,
+          -rotatedOffset.x * sine + rotatedOffset.y * cosine
+        );
+
+        float3 referenceAxis = abs(normalWS.y) < 0.999 ?
+          float3(0, 1, 0) : float3(1, 0, 0);
+        float3 offsetTangent = normalize(cross(referenceAxis, normalWS));
+        float3 offsetBitangent = normalize(cross(normalWS, offsetTangent));
+
+        return normalize(
+          directionWS +
+          offsetTangent * rotatedOffset.x +
+          offsetBitangent * rotatedOffset.y
+        );
+      }
+
       // Isolated specular reflection calculation
       float3 CalculateSpecularReflection(
+        Light light,
         float3 normalWS,
-        float3 tangentWS,
-        float3 bitangentWS,
         float3 viewDirWS,
-        float3 lightDirWS,
-        float3 lightColor,
-        float attenuation,
+        float3 specularLightDirection,
         float3 albedo,
         float metallic,
         float roughness
@@ -210,87 +293,193 @@ Shader "berch/Holographic"
           brdfData
         );
 
-        half NDotL = saturate(dot(normalWS, lightDirWS));
+        half NDotL = saturate(dot(normalWS, light.direction));
         half specularTerm = DirectBRDFSpecular(
           brdfData,
           normalWS,
-          lightDirWS,
+          specularLightDirection,
           viewDirWS
         );
 
-        return attenuation * lightColor * brdfData.specular *
-          specularTerm * NDotL * _SpecularReflectionStrength;
+        return light.distanceAttenuation * light.shadowAttenuation *
+          light.color * brdfData.specular * specularTerm * NDotL;
       }
 
       float3 CalculateEnvironmentReflection(
-        float3 positionWS,
+        Varyings input,
         float3 normalWS,
         float3 viewDirWS,
+        float3 reflectionDirection,
         float roughness,
         float3 albedo,
-        float metallic,
-        float reflectionStrength,
-        float2 normalizedScreenSpaceUV
+        float metallic
       )
       {
-        float3 reflectionDirection = reflect(-viewDirWS, normalWS);
         float3 f0 = lerp(
           float3(0.04, 0.04, 0.04),
           albedo,
           saturate(metallic)
         );
+
         float fresnelTerm = pow(
           1.0 - saturate(dot(normalWS, viewDirWS)),
-          5.0
+          _FresnelPower
         );
-        float3 fresnelColor = f0 + (1.0 - f0) * fresnelTerm;
+
+        float3 fresnelColor = f0 +
+          (1.0 - f0) * fresnelTerm * _FresnelStrength;
 
         return GlossyEnvironmentReflection(
           reflectionDirection,
-          positionWS,
+          input.positionWS,
           saturate(roughness),
           1.0,
-          normalizedScreenSpaceUV
-        ) * fresnelColor * reflectionStrength;
+          GetNormalizedScreenSpaceUV(input.positionCS)
+        ) * fresnelColor;
       }
 
-      float3 CalculateLight(
-        float3 positionWS,
+      // Holographic coat calculation
+      // The juice happens here, where we calculate the holographic effect.
+      float3 CalculateHoloCoat(
+        Varyings input,
+        Light light,
         float3 normalWS,
-        float3 tangentWS,
-        float3 bitangentWS,
         float3 viewDirWS,
-        float3 lightDirWS,
-        float3 lightColor,
-        float attenuation,
         float3 albedo,
         float metallic,
         float roughness
       )
       {
-        float NDotL = dot(normalWS, lightDirWS);
+        float3 holoCoat = float3(0,0,0);
 
-        float3 DiffRefl = attenuation * lightColor * albedo * (1.0 - metallic) * max(0.0, NDotL);
+        // === Sample Textures ===
+        float holoStrength = _HoloStrength * SAMPLE_TEXTURE2D(
+          _HoloMap,
+          sampler_HoloMap,
+          TRANSFORM_TEX(input.uv, _HoloMap)
+        ).r;
+
+        float holoRoughness = _HoloRoughness * SAMPLE_TEXTURE2D(
+          _HoloRoughnessMap,
+          sampler_HoloRoughnessMap,
+          TRANSFORM_TEX(input.uv, _HoloRoughnessMap)
+        ).r;
+
+        float3 holoNormalTS = DecodeHoloNormalMap(
+          TRANSFORM_TEX(input.uv, _HoloNormalMap)
+        );
+        // ============
+
+        float reflectionStrength = 1.0 /
+          ((1.0 + _HoloIterations * 2.0) * (1.0 + _HoloIterations * 2.0) * (1.0 + _DispersionIterations));
+
+        for(int x = -_HoloIterations; x <= _HoloIterations; x++)
+        {
+          for(int y = -_HoloIterations; y <= _HoloIterations; y++)
+          {
+            // Prevent the center reflection from being calculated multiple times
+            int dispersionIterations = lerp(1, _DispersionIterations, saturate(abs(x) + abs(y)));
+
+            // Calculate the dispersion effect by iterating,
+            // giving each iteration a different offset and color based on the iteration index
+            for (int i = 0; i < dispersionIterations; i++)
+            {
+              float t = (float)i / (float)(dispersionIterations);
+              float dispersionOffset = t * _DispersionFactor;
+
+              float2 offset = float2(x, y) * (_HoloOffset * (1 + dispersionOffset));
+
+              float3 holoNormalTSOffset = ApplyHoloAnisotropyToNormal(holoNormalTS);
+              float3 holoNormalWSOffset = TangentToWorld(
+                holoNormalTSOffset,
+                input.tangentWS,
+                input.bitangentWS,
+                input.normalWS
+              );
+
+              float3 holoLightDirection = OffsetHoloDirection(
+                light.direction,
+                input.normalWS,
+                offset
+              );
+
+              float3 dispersionColor = lerp(float3(1, 1, 1), float3(
+                saturate(abs(3 - t * 6) - 1),
+                saturate(-abs(t * 6 - 2) + 2),
+                saturate(-abs(t * 6 - 4) + 2)
+              ), saturate(dispersionIterations - 1));
+
+              holoCoat += CalculateSpecularReflection(
+                light,
+                holoNormalWSOffset,
+                viewDirWS,
+                holoLightDirection,
+                float4(1, 1, 1, 1),
+                1.0,
+                saturate(holoRoughness * (1.0 + distance(float3(0, 0, 0), offset)))
+              ) * reflectionStrength * dispersionColor;
+
+              // holoCoat += CalculateEnvironmentReflection(
+              //   input,
+              //   holoNormalWSOffset,
+              //   viewDirWS,
+              //   OffsetHoloDirection(
+              //     reflect(-viewDirWS, holoNormalWSOffset),
+              //     input.normalWS,
+              //     offset
+              //   ),
+              //   saturate(holoRoughness * (1.0 + distance(float3(0, 0, 0), offset))),
+              //   float4(1, 1, 1, 1),
+              //   1.0
+              // ) * reflectionStrength * dispersionColor * _EnvironmentReflectionStrength;
+            }
+          }
+        }
+
+        return holoCoat * holoStrength;
+      }
+
+      float3 CalculateLight(
+        Varyings input,
+        Light light,
+        float3 normalWS,
+        float3 viewDirWS,
+        float3 albedo,
+        float metallic,
+        float roughness
+      )
+      {
+        float NDotL = dot(normalWS, light.direction);
+
+        float3 DiffRefl = light.distanceAttenuation * light.shadowAttenuation *
+          light.color * albedo * (1.0 - metallic) * max(0.0, NDotL);
 
         float3 SpecRefl = float3(0,0,0);
 
         if (NDotL >= 0)
         {
           SpecRefl = CalculateSpecularReflection(
+            light,
             normalWS,
-            tangentWS,
-            bitangentWS,
             viewDirWS,
-            lightDirWS,
-            lightColor,
-            attenuation,
+            light.direction,
             albedo,
             metallic,
             roughness
-          );
+          ) * _Shininess;
         }
 
-        return DiffRefl + SpecRefl;
+        float3 holoCoat = CalculateHoloCoat(
+          input,
+          light,
+          normalWS,
+          viewDirWS,
+          albedo,
+          metallic,
+          roughness
+        );
+
+        return DiffRefl + SpecRefl + holoCoat;
       }
 
       float4 frag(Varyings input) : SV_TARGET
@@ -325,15 +514,14 @@ Shader "berch/Holographic"
 
         float3 ambientDiffuse = SampleSH(normalWS) * baseColor.rgb * (1.0 - metallic);
         float3 environmentReflection = CalculateEnvironmentReflection(
-          input.positionWS,
+          input,
           normalWS,
           viewDirWS,
+          reflect(-viewDirWS, normalWS),
           roughness,
           baseColor.rgb,
-          metallic,
-          _EnvironmentReflectionStrength,
-          GetNormalizedScreenSpaceUV(input.positionCS)
-        );
+          metallic
+        ) * _Shininess;
 
         float3 finalColor = ambientDiffuse + environmentReflection;
 
@@ -341,14 +529,10 @@ Shader "berch/Holographic"
         Light mainLight = GetMainLight(input.shadowCoord);
 
         finalColor += CalculateLight(
-          input.positionWS,
+          input,
+          mainLight,
           normalWS,
-          input.tangentWS,
-          input.bitangentWS,
           viewDirWS,
-          mainLight.direction,
-          mainLight.color,
-          mainLight.distanceAttenuation * mainLight.shadowAttenuation,
           baseColor.rgb,
           metallic,
           roughness
@@ -374,14 +558,10 @@ Shader "berch/Holographic"
           Light light = GetAdditionalPerObjectLight(lightIndex, input.positionWS);
 
           finalColor += CalculateLight(
-            input.positionWS,
+            input,
+            light,
             normalWS,
-            input.tangentWS,
-            input.bitangentWS,
             viewDirWS,
-            light.direction,
-            light.color,
-            light.distanceAttenuation * light.shadowAttenuation,
             baseColor.rgb,
             metallic,
             roughness
