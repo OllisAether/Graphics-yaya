@@ -61,11 +61,11 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Anisotropy: -0.45
-    - _AnisotropyRotation: 0.881
+    - _Anisotropy: 0.23
+    - _AnisotropyRotation: 0.695
     - _AnisotropyTangent: 0.449
     - _BumpStrength: 0.1
-    - _DispersionFactor: 1.17
+    - _DispersionFactor: 1.42
     - _DispersionIterations: 6
     - _EnvironmentReflectionStrength: 1
     - _FresnelPower: 3.41
@@ -86,6 +86,7 @@ Material:
     - _SpecularReflectionStrength: 0.06
     - _SpecularStrength: 0.359
     m_Colors:
+    - _AnisotropyTangent: {r: 0, g: 1, b: 0, a: 0}
     - _BaseColor: {r: 0.31132078, g: 0.31132078, b: 0.31132078, a: 1}
     - _SpecColor: {r: 1, g: 0, b: 0, a: 1}
     - _SpecularColor: {r: 1, g: 1, b: 1, a: 1}

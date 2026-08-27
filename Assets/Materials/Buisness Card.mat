@@ -61,7 +61,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Anisotropy: 0.56
+    - _Anisotropy: -0.555
     - _AnisotropyRotation: 0.176
     - _AnisotropyTangent: 0.449
     - _BumpStrength: 0.1

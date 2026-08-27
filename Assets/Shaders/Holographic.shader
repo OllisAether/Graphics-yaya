@@ -4,19 +4,19 @@ Shader "berch/Holographic"
   {
     [Header(Main Surface Properties)]
     [MainColor] _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
-    [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
+    [NoScaleOffset][MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
 
     [Header(Metallic Properties)]
     _Metallic ("Metallic", Range(0, 1)) = 0
-    _MetallicMap ("Metallic Map", 2D) = "white" {}
+    [NoScaleOffset]_MetallicMap ("Metallic Map", 2D) = "white" {}
 
     [Header(Roughness Properties)]
     _Roughness ("Roughness", Range(0, 1)) = 0.35
-    _RoughnessMap ("Roughness Map", 2D) = "white" {}
+    [NoScaleOffset]_RoughnessMap ("Roughness Map", 2D) = "white" {}
     _Shininess ("Shininess", Range(0, 1)) = 1
 
     [Header(Normal Properties)]
-    [Normal] _NormalMap ("Normal Map", 2D) = "bump" {}
+    [NoScaleOffset][Normal] _NormalMap ("Normal Map", 2D) = "bump" {}
     _NormalStrength ("Strength", Range(0, 2)) = 1
 
     [Header(Fresnel Properties)]
@@ -25,15 +25,15 @@ Shader "berch/Holographic"
 
     [Header(Holographic Coat)]
     _HoloStrength ("Holographic Strength", Range(0, 1)) = 1
-    _HoloMap ("Holographic Map", 2D) = "white" {}
+    [NoScaleOffset]_HoloMap ("Holographic Map", 2D) = "white" {}
 
     [Header(Holographic Normal Properties)]
-    _HoloNormalMap ("Holographic Normal Map", 2D) = "bump" {}
+    [NoScaleOffset][Normal]_HoloNormalMap ("Holographic Normal Map", 2D) = "bump" {}
     _HoloNormalStrength ("Holographic Normal Strength", Range(0, 2)) = 1
 
     [Header(Holographic Specular Properties)]
     _HoloRoughness ("Holographic Roughness", Range(0, 1)) = 0.35
-    _HoloRoughnessMap ("Holographic Roughness Map", 2D) = "white" {}
+    [NoScaleOffset]_HoloRoughnessMap ("Holographic Roughness Map", 2D) = "white" {}
 
     [Space(10)]
     _Anisotropy ("Holo Anisotropy", Range(-1, 1)) = 0
@@ -214,29 +214,6 @@ Shader "berch/Holographic"
         return normalize(mul(normalTS, tangentToWorld));
       }
 
-      float3 ApplyHoloAnisotropyToNormal(
-        float3 normalTS
-      )
-      {
-        float angle = _AnisotropyRotation * 6.2831853;
-        float sine = sin(angle);
-        float cosine = cos(angle);
-        float2 rotatedXY = float2(
-          normalTS.x * cosine - normalTS.y * sine,
-          normalTS.x * sine + normalTS.y * cosine
-        );
-        rotatedXY *= float2(
-          1.0 + _Anisotropy,
-          1.0 - _Anisotropy
-        );
-        normalTS.xy = float2(
-          rotatedXY.x * cosine + rotatedXY.y * sine,
-          -rotatedXY.x * sine + rotatedXY.y * cosine
-        );
-
-        return normalize(normalTS);
-      }
-
       float3 OffsetHoloDirection(
         float3 directionWS,
         float3 normalWS,
@@ -368,6 +345,13 @@ Shader "berch/Holographic"
         float3 holoNormalTS = DecodeHoloNormalMap(
           TRANSFORM_TEX(input.uv, _HoloNormalMap)
         );
+
+        float3 holoNormalWSOffset = TangentToWorld(
+          holoNormalTS,
+          input.tangentWS,
+          input.bitangentWS,
+          input.normalWS
+        );
         // ============
 
         float reflectionStrength = 1.0 /
@@ -389,14 +373,6 @@ Shader "berch/Holographic"
 
               float2 offset = float2(x, y) * (_HoloOffset * (1 + dispersionOffset));
 
-              float3 holoNormalTSOffset = ApplyHoloAnisotropyToNormal(holoNormalTS);
-              float3 holoNormalWSOffset = TangentToWorld(
-                holoNormalTSOffset,
-                input.tangentWS,
-                input.bitangentWS,
-                input.normalWS
-              );
-
               float3 holoLightDirection = OffsetHoloDirection(
                 light.direction,
                 input.normalWS,
@@ -416,7 +392,7 @@ Shader "berch/Holographic"
                 holoLightDirection,
                 float4(1, 1, 1, 1),
                 1.0,
-                saturate(holoRoughness * (1.0 + distance(float3(0, 0, 0), offset)))
+                saturate(holoRoughness * (1.0 + length(offset)))
               ) * reflectionStrength * dispersionColor;
 
               // holoCoat += CalculateEnvironmentReflection(
@@ -428,7 +404,7 @@ Shader "berch/Holographic"
               //     input.normalWS,
               //     offset
               //   ),
-              //   saturate(holoRoughness * (1.0 + distance(float3(0, 0, 0), offset))),
+              //   saturate(holoRoughness * (1.0 + length(offset))),
               //   float4(1, 1, 1, 1),
               //   1.0
               // ) * reflectionStrength * dispersionColor * _EnvironmentReflectionStrength;
