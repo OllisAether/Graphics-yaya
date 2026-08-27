@@ -8,6 +8,8 @@ This is not simply a rainbow gradient layered over a surface. The shader builds 
 
 The project examples are under `Assets/Scenes/Holographic`. The examples are set up with a directional light and a skybox and three additional spot lights to show off the effect.
 
+Hit `Play` to see the effect in action.
+
 The examples include:
 
 - **Suzanne**: The default Blender Suzanne model. It shows the effect on a simple model with a single material.
