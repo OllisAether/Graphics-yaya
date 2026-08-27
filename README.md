@@ -23,7 +23,7 @@ The shader combines several techniques:
 
 ## Example Scene
 
-The project examples are under `Assets/Scenes/Holographic`. The examples are set up with a directional light and a skybox and three additional spot lights to show off the effect.
+The project examples are under `Assets/Scenes/Holographic`. The examples are set up with a directional light and a skybox and three additional spotlights to show off the effect.
 
 1. Open an example scene under `Assets/Scenes/Holographic`.
 2. Play the scene and use the mouse controls to inspect the material from different angles.
