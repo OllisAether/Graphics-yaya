@@ -1020,6 +1020,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: mazda_miata_mx-5
       objectReference: {fileID: 0}
+    - target: {fileID: 8128668236925612103, guid: 7cdb2ea6e447847878449bba50f8fe70, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8897093224900880590, guid: 7cdb2ea6e447847878449bba50f8fe70, type: 3}
       propertyPath: m_LocalScale.x
       value: 0.007

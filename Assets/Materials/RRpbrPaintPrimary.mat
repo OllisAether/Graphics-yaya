@@ -253,7 +253,7 @@ Material:
     - transmissionTextureRotation: 0
     - transmissionTextureTexCoord: 0
     m_Colors:
-    - _BaseColor: {r: 0.5849056, g: 0.5849056, b: 0.5849056, a: 1}
+    - _BaseColor: {r: 0.63492537, g: 0, b: 1, a: 1}
     - attenuationColor: {r: 1, g: 1, b: 1, a: 0}
     - baseColorFactor: {r: 0.48555088, g: 0, b: 0.54867256, a: 1}
     - emissiveFactor: {r: 0, g: 0, b: 0, a: 0}
