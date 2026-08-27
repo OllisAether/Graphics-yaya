@@ -49,3 +49,7 @@ Higher iteration counts will increase the number of specular samples and therefo
 
 ## Compatibility
 This material is designed to work with Unity's Universal Render Pipeline (URP).
+
+## Used Models
+
+Sketchfab model **[Mazda Miata mx-5](https://sketchfab.com/3d-models/mazda-miata-mx-5-e074e29ccc3847dca74ed5e9cb92d3e7)** by **[Black Snow](https://sketchfab.com/BlackSnow02)**. Licensed under [CC Attribution](https://creativecommons.org/licenses/by/4.0/).
