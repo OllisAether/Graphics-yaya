@@ -50,6 +50,18 @@ Higher iteration counts will increase the number of specular samples and therefo
 ## Compatibility
 This material is designed to work with Unity's Universal Render Pipeline (URP).
 
+## Examples
+
+The project examples are under `Assets/Scenes/Holographic`. The examples are set up with a directional light and a skybox and three additional spot lights to show off the effect.
+
+The examples include:
+
+- **Suzanne**: The default Blender Suzanne model. It shows the effect on a simple model with a single material.
+- **MURMY Business Card**: A simple business card model with a holographic coat on top of a base surface.
+- **Hatsune Miku Studimon Card**: A more complex card with a holographic coat on top of a base surface. The holographic coat uses a separate normal map to shape the highlights. The base surface uses a normal map to create a subtle embossed effect.
+- **Mazda Miata mx-5**: A car model with a holographic car paint material. It shows the effect on a complex model with multiple materials.
+- **VS-Code open time**: A screenshot showing how long I have been working on this project. It has a holographic coat on top of a base surface with a separate normal map to shape little stars.
+
 ## Used Models
 
 Sketchfab model **[Mazda Miata mx-5](https://sketchfab.com/3d-models/mazda-miata-mx-5-e074e29ccc3847dca74ed5e9cb92d3e7)** by **[Black Snow](https://sketchfab.com/BlackSnow02)**. Licensed under [CC Attribution](https://creativecommons.org/licenses/by/4.0/).
