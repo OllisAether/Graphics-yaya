@@ -1,4 +1,4 @@
-Shader "berch/Holographic"
+Shader "Custom/Holographic"
 {
   Properties
   {
@@ -42,7 +42,7 @@ Shader "berch/Holographic"
     // [Space(10)]
     // _EnvironmentReflectionStrength ("Environment Reflection Strength", Range(0, 2)) = 1
 
-    [Header(Holographic Iteration Properties)]
+    [Header(Holographic Dispersion Properties)]
     _HoloIterations ("Holographic Iterations", Int) = 1
     _HoloOffset ("Holographic Offset", Range(0.01, 1)) = 1
     [Space(10)]
@@ -164,7 +164,6 @@ Shader "berch/Holographic"
       {
         Varyings output;
 
-        // Get the position of the vertex in different spaces
         VertexPositionInputs positions = GetVertexPositionInputs(input.positionOS.xyz);
         VertexNormalInputs normals = GetVertexNormalInputs(input.normalOS, input.tangentOS);
 
@@ -188,7 +187,7 @@ Shader "berch/Holographic"
         return normalize(normalTS);
       }
 
-
+      // The holographic coat uses a separate normal map to create its own specular response.
       float3 DecodeHoloNormalMap(float2 uv)
       {
         float4 packedNormal = SAMPLE_TEXTURE2D(_HoloNormalMap, sampler_HoloNormalMap, uv);
@@ -196,7 +195,6 @@ Shader "berch/Holographic"
 
         return normalize(normalTS);
       }
-
 
       float3 TangentToWorld(
         float3 normalTS,
@@ -220,7 +218,10 @@ Shader "berch/Holographic"
         float2 offset
       )
       {
-        float angle = _AnisotropyRotation * 6.2831853;
+        // A holographic highlight is made by evaluating the same light from several nearby directions.
+        // The offset is rotated and scaled by the anisotropy controls,
+        // which can stretch the highlight into a streak.
+        float angle = _AnisotropyRotation * PI * 2.0;
         float sine = sin(angle);
         float cosine = cos(angle);
         float2 rotatedOffset = float2(
@@ -236,8 +237,8 @@ Shader "berch/Holographic"
           -rotatedOffset.x * sine + rotatedOffset.y * cosine
         );
 
-        float3 referenceAxis = abs(normalWS.y) < 0.999 ?
-          float3(0, 1, 0) : float3(1, 0, 0);
+        // The offset is applied in the tangent space of the surface normal.
+        float3 referenceAxis = abs(normalWS.y) < 0.999 ? float3(0, 1, 0) : float3(1, 0, 0);
         float3 offsetTangent = normalize(cross(referenceAxis, normalWS));
         float3 offsetBitangent = normalize(cross(normalWS, offsetTangent));
 
@@ -248,7 +249,7 @@ Shader "berch/Holographic"
         );
       }
 
-      // Isolated specular reflection calculation
+      // === Specular Reflection Calculation ===
       float3 CalculateSpecularReflection(
         Light light,
         float3 normalWS,
@@ -259,6 +260,8 @@ Shader "berch/Holographic"
         float roughness
       )
       {
+        // The specular reflection is calculated using the URP's standard lighting model.
+        // This keeps the highlights consistent with the pipeline's standard lighting model.
         BRDFData brdfData;
         half alpha = 1.0;
         InitializeBRDFData(
@@ -282,6 +285,7 @@ Shader "berch/Holographic"
           light.color * brdfData.specular * specularTerm * NDotL;
       }
 
+      // === Environment Reflection Calculation ===
       float3 CalculateEnvironmentReflection(
         Varyings input,
         float3 normalWS,
@@ -292,6 +296,8 @@ Shader "berch/Holographic"
         float metallic
       )
       {
+        // This function calculates the environment reflection for the main surface
+        // based on reflection probe data and the surface properties.
         float3 f0 = lerp(
           float3(0.04, 0.04, 0.04),
           albedo,
@@ -315,7 +321,7 @@ Shader "berch/Holographic"
         ) * fresnelColor;
       }
 
-      // Holographic coat calculation
+      // === Holographic coat calculation ===
       // The juice happens here, where we calculate the holographic effect.
       float3 CalculateHoloCoat(
         Varyings input,
@@ -352,8 +358,11 @@ Shader "berch/Holographic"
           input.bitangentWS,
           input.normalWS
         );
-        // ============
 
+        // The reflection strength is divided by the total number of samples,
+        // which is the square of the number of holographic iterations plus the number of dispersion iterations.
+        // This ensures that the overall intensity of the holographic coat remains consistent
+        // regardless of the number of samples taken.
         float reflectionStrength = 1.0 /
           ((1.0 + _HoloIterations * 2.0) * (1.0 + _HoloIterations * 2.0) * (1.0 + _DispersionIterations));
 
@@ -361,30 +370,38 @@ Shader "berch/Holographic"
         {
           for(int y = -_HoloIterations; y <= _HoloIterations; y++)
           {
-            // Prevent the center reflection from being calculated multiple times
+            // The center sample is the original light direction, so it doesn't need to be offset or dispersed.
+            // So the result of the dispersionIterations calculation is 1 for the center sample
             int dispersionIterations = lerp(1, _DispersionIterations, saturate(abs(x) + abs(y)));
 
-            // Calculate the dispersion effect by iterating,
-            // giving each iteration a different offset and color based on the iteration index
             for (int i = 0; i < dispersionIterations; i++)
             {
               float t = (float)i / (float)(dispersionIterations);
               float dispersionOffset = t * _DispersionFactor;
 
+              // The offset is scaled by the holographic offset and the dispersion offset.
+              // The dispersion offset is a small value that increases with each dispersion iteration,
+              // so that each iteration receives a slightly different offset.
               float2 offset = float2(x, y) * (_HoloOffset * (1 + dispersionOffset));
 
+              // Offset the incoming light direction.
               float3 holoLightDirection = OffsetHoloDirection(
                 light.direction,
                 input.normalWS,
                 offset
               );
 
+              // The color of each sample is determined by its dispersion iteration.
+              // The first sample is red, the last sample is blue, and the middle sample is green.
+              // The color is interpolated across the spectrum for each iteration.
               float3 dispersionColor = lerp(float3(1, 1, 1), float3(
                 saturate(abs(3 - t * 6) - 1),
                 saturate(-abs(t * 6 - 2) + 2),
                 saturate(-abs(t * 6 - 4) + 2)
               ), saturate(dispersionIterations - 1));
 
+              // The holographic coat is calculated by adding the specular reflection of each offset light direction,
+              // multiplied by the reflection strength and the dispersion color.
               holoCoat += CalculateSpecularReflection(
                 light,
                 holoNormalWSOffset,
@@ -394,6 +411,9 @@ Shader "berch/Holographic"
                 1.0,
                 saturate(holoRoughness * (1.0 + length(offset)))
               ) * reflectionStrength * dispersionColor;
+
+              // This code is for dispersed environment reflections, but it is commented out
+              // because it adds a lot of extra cost and the effect is not as visually important as the direct light highlights.
 
               // holoCoat += CalculateEnvironmentReflection(
               //   input,
@@ -445,6 +465,7 @@ Shader "berch/Holographic"
           ) * _Shininess;
         }
 
+        // === Holographic coat calculation ===
         float3 holoCoat = CalculateHoloCoat(
           input,
           light,
@@ -470,6 +491,7 @@ Shader "berch/Holographic"
 
         float3 viewDirWS = normalize(GetWorldSpaceViewDir(input.positionWS));
 
+        // === Sample Textures ===
         float4 baseColor = _BaseColor * SAMPLE_TEXTURE2D(
           _BaseMap,
           sampler_BaseMap,
@@ -488,6 +510,7 @@ Shader "berch/Holographic"
           TRANSFORM_TEX(input.uv, _RoughnessMap)
         ).r;
 
+        // === Environment Reflection ===
         float3 ambientDiffuse = SampleSH(normalWS) * baseColor.rgb * (1.0 - metallic);
         float3 environmentReflection = CalculateEnvironmentReflection(
           input,
@@ -501,7 +524,7 @@ Shader "berch/Holographic"
 
         float3 finalColor = ambientDiffuse + environmentReflection;
 
-        //Main Light
+        // === Main Light ===
         Light mainLight = GetMainLight(input.shadowCoord);
 
         finalColor += CalculateLight(
@@ -514,7 +537,7 @@ Shader "berch/Holographic"
           roughness
         );
 
-        // Additional Lights
+        // === Additional Lights ===
         #ifdef _ADDITIONAL_LIGHTS
 
         uint additionalLightCount = GetAdditionalLightsCount();
