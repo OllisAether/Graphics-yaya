@@ -324,40 +324,20 @@ Shader "Custom/Holographic"
       // === Holographic coat calculation ===
       // The juice happens here, where we calculate the holographic effect.
       float3 CalculateHoloCoat(
-        Varyings input,
         Light light,
         float3 normalWS,
         float3 viewDirWS,
-        float3 albedo,
-        float metallic,
-        float roughness
+        float holoStrength,
+        float holoRoughness,
+        float3 holoNormalWSOffset
       )
       {
         float3 holoCoat = float3(0,0,0);
 
-        // === Sample Textures ===
-        float holoStrength = _HoloStrength * SAMPLE_TEXTURE2D(
-          _HoloMap,
-          sampler_HoloMap,
-          TRANSFORM_TEX(input.uv, _HoloMap)
-        ).r;
-
-        float holoRoughness = _HoloRoughness * SAMPLE_TEXTURE2D(
-          _HoloRoughnessMap,
-          sampler_HoloRoughnessMap,
-          TRANSFORM_TEX(input.uv, _HoloRoughnessMap)
-        ).r;
-
-        float3 holoNormalTS = DecodeHoloNormalMap(
-          TRANSFORM_TEX(input.uv, _HoloNormalMap)
-        );
-
-        float3 holoNormalWSOffset = TangentToWorld(
-          holoNormalTS,
-          input.tangentWS,
-          input.bitangentWS,
-          input.normalWS
-        );
+        if (holoStrength <= 0.0)
+        {
+          return holoCoat;
+        }
 
         // The reflection strength is divided by the total number of samples,
         // which is the square of the number of holographic iterations plus the number of dispersion iterations.
@@ -387,7 +367,7 @@ Shader "Custom/Holographic"
               // Offset the incoming light direction.
               float3 holoLightDirection = OffsetHoloDirection(
                 light.direction,
-                input.normalWS,
+                normalWS,
                 offset
               );
 
@@ -442,7 +422,10 @@ Shader "Custom/Holographic"
         float3 viewDirWS,
         float3 albedo,
         float metallic,
-        float roughness
+        float roughness,
+        float holoStrength,
+        float holoRoughness,
+        float3 holoNormalWSOffset
       )
       {
         float NDotL = dot(normalWS, light.direction);
@@ -467,13 +450,12 @@ Shader "Custom/Holographic"
 
         // === Holographic coat calculation ===
         float3 holoCoat = CalculateHoloCoat(
-          input,
           light,
           normalWS,
           viewDirWS,
-          albedo,
-          metallic,
-          roughness
+          holoStrength,
+          holoRoughness,
+          holoNormalWSOffset
         );
 
         return DiffRefl + SpecRefl + holoCoat;
@@ -510,6 +492,25 @@ Shader "Custom/Holographic"
           TRANSFORM_TEX(input.uv, _RoughnessMap)
         ).r;
 
+        float holoStrength = _HoloStrength * SAMPLE_TEXTURE2D(
+          _HoloMap,
+          sampler_HoloMap,
+          TRANSFORM_TEX(input.uv, _HoloMap)
+        ).r;
+
+        float holoRoughness = _HoloRoughness * SAMPLE_TEXTURE2D(
+          _HoloRoughnessMap,
+          sampler_HoloRoughnessMap,
+          TRANSFORM_TEX(input.uv, _HoloRoughnessMap)
+        ).r;
+
+        float3 holoNormalWSOffset = TangentToWorld(
+          DecodeHoloNormalMap(TRANSFORM_TEX(input.uv, _HoloNormalMap)),
+          input.tangentWS,
+          input.bitangentWS,
+          input.normalWS
+        );
+
         // === Environment Reflection ===
         float3 ambientDiffuse = SampleSH(normalWS) * baseColor.rgb * (1.0 - metallic);
         float3 environmentReflection = CalculateEnvironmentReflection(
@@ -534,7 +535,10 @@ Shader "Custom/Holographic"
           viewDirWS,
           baseColor.rgb,
           metallic,
-          roughness
+          roughness,
+          holoStrength,
+          holoRoughness,
+          holoNormalWSOffset
         );
 
         // === Additional Lights ===
@@ -563,7 +567,10 @@ Shader "Custom/Holographic"
             viewDirWS,
             baseColor.rgb,
             metallic,
-            roughness
+            roughness,
+            holoStrength,
+            holoRoughness,
+            holoNormalWSOffset
           );
         }
         LIGHT_LOOP_END
